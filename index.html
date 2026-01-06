@@ -2,143 +2,47 @@
 <html lang="en-US">
 <head>
 <meta charset="utf-8" />
-<title>Collision Graph – PLC vs Robot Programs</title>
-
+<title>Collision Graph - PLC x Programs + Zoom</title>
 <script src="https://d3js.org/d3.v7.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
-
 <style>
-html, body {
-  height:100%;
-  margin:0;
-  font-family: Arial, sans-serif;
-}
+html, body { height:100%; margin:0; font-family: Arial, sans-serif; }
+#container { width:1200px; height:600px; overflow:auto; position:relative; background:#f3f3f3; }
 
-#container {
-  width:1200px;
-  height:600px;
-  overflow:auto;
-  position:relative;
-  background:#f3f3f3;
-}
-
-/* ===================== CONTROLS ===================== */
 .controls {
-  position: fixed;
-  top:10px;
-  right:12px;
-  background: rgba(255,255,255,0.95);
-  border:1px solid #ccc;
-  padding:8px;
-  border-radius:6px;
-  box-shadow:0 2px 8px rgba(0,0,0,0.12);
-  z-index:9999;
+  position: fixed; top:10px; right:12px; background: rgba(255,255,255,0.95);
+  border:1px solid #ccc; padding:8px; border-radius:6px; box-shadow:0 2px 8px rgba(0,0,0,0.12); z-index:9999;
 }
+.controls input[type=file], .controls button { margin:4px 0; width:250px; display:block; }
+.controls .mode { margin-top:6px; font-size:13px; color:#333; }
 
-.controls input[type=file],
-.controls button {
-  margin:4px 0;
-  width:250px;
-  display:block;
-}
+svg { display:block; background: transparent; }
 
-.controls .mode {
-  margin-top:6px;
-  font-size:13px;
-  color:#333;
-}
+/* ROBOT NODES: white fill + red border */
+.node rect { fill:#ffffff; stroke:#ff0000; stroke-width:2px; cursor:grab; }
+.node text { fill:#000000; font-size:12px; pointer-events:none; text-anchor:middle; dominant-baseline:middle; }
 
-/* ===================== SVG ===================== */
-svg {
-  display:block;
-  background: transparent;
-}
+.link { stroke: red; stroke-width: 4px; fill:none; pointer-events:none; }
+.collision circle { stroke:#111; cursor:pointer; }
+.collision text { font-size:12px; fill:black; pointer-events:none; text-anchor:middle; dominant-baseline:middle; }
 
-/* ===================== ROBOT NODES ===================== */
-.node rect {
-  fill:#ffffff;
-  stroke:#ff0000;
-  stroke-width:2px;
-  cursor:grab;
-}
-
-.node text {
-  fill:#000000;
-  font-size:12px;
-  pointer-events:none;
-  text-anchor:middle;
-  dominant-baseline:middle;
-}
-
-/* ===================== LINKS / COLLISIONS ===================== */
-.link {
-  stroke:red;
-  stroke-width:4px;
-  fill:none;
-  pointer-events:none;
-}
-
-.collision circle {
-  stroke:#111;
-  cursor:pointer;
-}
-
-.collision text {
-  font-size:12px;
-  fill:black;
-  pointer-events:none;
-  text-anchor:middle;
-  dominant-baseline:middle;
-}
-
-/* ===================== TOOLTIP ===================== */
 #tooltip {
-  position:absolute;
-  display:none;
-  background: rgba(255,255,240,0.98);
-  border:1px solid #999;
-  padding:8px;
-  border-radius:6px;
-  max-width:360px;
-  white-space:pre-line;
-  z-index:10000;
+  position:absolute; display:none; background: rgba(255,255,240,0.98); border:1px solid #999;
+  padding:8px; border-radius:6px; max-width:360px; white-space:pre-line; z-index:10000;
   box-shadow:0 2px 10px rgba(0,0,0,0.15);
 }
 
-/* ===================== LEGEND ===================== */
-.legend {
-  font-size:12px;
-  margin-top:6px;
-}
+.legend { font-size:12px; margin-top:6px; }
+.legend .dot { width:12px; height:12px; display:inline-block; vertical-align:middle; margin-right:6px; border:1px solid #111; }
 
-.legend .dot {
-  width:12px;
-  height:12px;
-  display:inline-block;
-  vertical-align:middle;
-  margin-right:6px;
-  border:1px solid #111;
-}
-
-/* ===================== ROBOT CHECKLIST ===================== */
-#robotList label {
-  display:flex;
-  align-items:center;
-  gap:8px;
-  margin:2px 0;
-  cursor:pointer;
-}
-#robotList input {
-  cursor:pointer;
-}
+/* Robot checklist */
+#robotList label { display:flex; align-items:center; gap:8px; margin:2px 0; cursor:pointer; }
+#robotList input { cursor:pointer; }
 </style>
 </head>
-
 <body>
 
-<!-- ===================== CONTROLS ===================== -->
 <div class="controls">
-
   Import PLC
   <input id="plcFile" type="file" accept=".xlsx,.xls,.csv">
 
@@ -152,43 +56,31 @@ svg {
   <button id="zoomGraphBtn">Zoom Graph Mode</button>
   <button id="exportSvgBtn">Export to SVG</button>
   <button id="saveProjectBtn">Save Graph</button>
-
   <input id="loadProjectInput" type="file" accept=".json" style="display:none">
   <button id="loadProjectBtn">Load Graph</button>
 
-  <div class="mode">
-    <small>Current mode: <span id="modeLabel">Graph</span></small>
-  </div>
+  <div class="mode"><small>Current mode: <span id="modeLabel">Graph</span></small></div>
 
   <div class="legend">
     <div><span class="dot" style="background:#ffffff"></span> Collision implemented & used (mutual)</div>
     <div><span class="dot" style="background:#ffcccc"></span> Collision implemented but NOT used</div>
     <div><span class="dot" style="background:#ff6666"></span> Collision implemented in only one direction (PLC error)</div>
-    <div><span class="dot" style="background:#fff7cc"></span> Collision used in programs but missing in PLC</div>
+    <div><span class="dot" style="background:#fff7cc"></span> Collision used in Programs but missing in PLC</div>
   </div>
 
   <hr style="margin:10px 0;">
 
-  <div style="font-size:13px; margin-bottom:6px;">
-    <b>Robots</b> (uncheck to hide)
-  </div>
-
+  <div style="font-size:13px; margin-bottom:6px;"><b>Robots</b> (uncheck to hide)</div>
   <div id="robotList"
-       style="max-height:220px; overflow:auto;
-              border:1px solid #ccc;
-              border-radius:6px;
-              padding:6px;
-              background:#fff;">
+       style="max-height:220px; overflow:auto; border:1px solid #ccc; border-radius:6px; padding:6px; background:#fff;">
   </div>
 
   <div style="margin-top:6px; display:flex; gap:6px;">
     <button id="robotsAllBtn" style="width:122px;">Show All</button>
     <button id="robotsNoneBtn" style="width:122px;">Hide All</button>
   </div>
-
 </div>
 
-<!-- ===================== GRAPH ===================== -->
 <div id="container">
   <svg id="svg" width="1200" height="600"></svg>
 </div>
@@ -196,9 +88,6 @@ svg {
 <div id="tooltip"></div>
 
 <script>
-/* ============================================================
-   INITIAL SETUP
-============================================================ */
 const svgEl = d3.select("#svg");
 const svgWidth = 1200, svgHeight = 600;
 const tooltip = d3.select("#tooltip");
@@ -211,9 +100,9 @@ const linkGroup = graphGroup.append("g");
 const collisionGroup = graphGroup.append("g");
 const nodeGroup = graphGroup.append("g");
 
-/* ============================================================
-   CONTEXT MENU – DELETE ROBOT
-============================================================ */
+// ===============================
+// CONTEXT MENU DELETE ROBOT
+// ===============================
 let contextRobot = null;
 
 const contextMenu = d3.select("body").append("div")
@@ -229,134 +118,213 @@ const contextMenu = d3.select("body").append("div")
   .text("Delete Robot");
 
 contextMenu.on("click", () => {
-  if (contextRobot) deleteRobot(contextRobot.id);
-  contextRobot = null;
+  if (contextRobot) {
+    deleteRobot(contextRobot.id);
+    contextRobot = null;
+  }
   hideContextMenu();
 });
 
-d3.select("body").on("click", hideContextMenu);
+d3.select("body").on("click", () => hideContextMenu());
 
 function showContextMenu(event, d){
   contextRobot = d;
-  contextMenu
-    .style("left", event.pageX + "px")
-    .style("top", event.pageY + "px")
-    .style("display","block");
+  contextMenu.style("left",(event.pageX)+"px")
+             .style("top",(event.pageY)+"px")
+             .style("display","block");
   event.preventDefault();
 }
 function hideContextMenu(){
   contextMenu.style("display","none");
 }
 
-/* ============================================================
-   DATA STRUCTURES
-============================================================ */
-let plcData=[], progData=[], allCollisions=[], nodes=[];
-let plcSet=new Set(), progSet=new Set(), programsByKey=new Map();
-let hiddenRobots=new Set();
-const nodeHeight=28;
+function deleteRobot(robotId){
+  nodes = nodes.filter(n => n.id !== robotId);
+  allCollisions = allCollisions.filter(c => c.robot1 !== robotId && c.robot2 !== robotId);
+  hiddenRobots.delete(robotId);
+  initGraph();
+}
+// ===============================
 
-/* ============================================================
-   HELPERS
-============================================================ */
+let plcData = [], progData = [], allCollisions = [], nodes = [];
+let plcSet = new Set(), progSet = new Set(), programsByKey = new Map(), plcReciprocal = new Set();
+const nodeHeight = 28;
+
+// ===============================
+// ROBOT VISIBILITY (checkbox list)
+// ===============================
+let hiddenRobots = new Set();
+
+function isRobotHidden(id){ return hiddenRobots.has(id); }
+
+function renderRobotCheckboxList(){
+  const listDiv = document.getElementById("robotList");
+  if (!listDiv) return;
+
+  const ids = nodes.map(n => n.id).slice().sort((a,b)=>a.localeCompare(b));
+
+  listDiv.innerHTML = "";
+  ids.forEach(id => {
+    const label = document.createElement("label");
+    const cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.checked = !isRobotHidden(id);
+    cb.dataset.robotId = id;
+
+    cb.addEventListener("change", () => {
+      if (cb.checked) hiddenRobots.delete(id);
+      else hiddenRobots.add(id);
+      applyVisibility();
+    });
+
+    const span = document.createElement("span");
+    span.textContent = id;
+
+    label.appendChild(cb);
+    label.appendChild(span);
+    listDiv.appendChild(label);
+  });
+}
+
+function applyVisibility(){
+  if (nodeSel) nodeSel.style("display", d => isRobotHidden(d.id) ? "none" : null);
+
+  if (linkSel) linkSel.style("display", d =>
+    (isRobotHidden(d.source) || isRobotHidden(d.target)) ? "none" : null
+  );
+
+  if (collSel) collSel.style("display", d => {
+    const r1 = d.collision.robot1;
+    const r2 = d.collision.robot2;
+    return (isRobotHidden(r1) || isRobotHidden(r2)) ? "none" : null;
+  });
+
+  tooltip.style("display","none");
+}
+
+document.getElementById("robotsAllBtn").addEventListener("click", () => {
+  hiddenRobots.clear();
+  renderRobotCheckboxList();
+  applyVisibility();
+});
+document.getElementById("robotsNoneBtn").addEventListener("click", () => {
+  hiddenRobots = new Set(nodes.map(n => n.id));
+  renderRobotCheckboxList();
+  applyVisibility();
+});
+// ===============================
+
 function keyFor(a,b,n){ return `${a}__${b}__${n}`; }
 function sortedPair(a,b){ return [a,b].sort(); }
-function isRobotHidden(id){ return hiddenRobots.has(id); }
-function findNodeById(id){ return nodes.find(n=>n.id===id); }
 
-/* ============================================================
-   FILE PARSER
-============================================================ */
 function parseFileAsJSON(file, callback){
   const reader = new FileReader();
-  reader.onload = e => {
-    const wb = XLSX.read(e.target.result, {type:'binary'});
-    const sheet = wb.Sheets[wb.SheetNames[0]];
-    callback(XLSX.utils.sheet_to_json(sheet,{defval:""}));
+  reader.onload = function(e){
+    let workbook;
+    try { workbook = XLSX.read(e.target.result, {type:'binary'}); }
+    catch(err){ workbook = XLSX.read(e.target.result, {type:'array'}); }
+    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+    const json = XLSX.utils.sheet_to_json(sheet, {defval:""});
+    callback(json);
   };
   reader.readAsBinaryString(file);
 }
 
-/* ============================================================
-   IMPORT PLC
-============================================================ */
-document.getElementById("plcFile").addEventListener("change",function(){
-  if(!this.files[0]) return;
-  parseFileAsJSON(this.files[0], rows=>{
+// Import PLC
+document.getElementById("plcFile").addEventListener("change", function(){
+  const f=this.files[0]; if(!f) return;
+  parseFileAsJSON(f, (rows)=>{
     plcData = rows.map(r=>({
-      robot1:(r.Robot1||"").trim(),
-      robot2:(r.Robot2||"").trim(),
+      robot1:(r.Robot1||r.robot1||"").toString().trim(),
+      robot2:(r.Robot2||r.robot2||"").toString().trim(),
       number:r.CollisionNumber||r.number
     }));
-    rebuild();
+    buildSetsAndRefresh();
   });
 });
 
-/* ============================================================
-   IMPORT PROGRAMS
-============================================================ */
-document.getElementById("progFile").addEventListener("change",function(){
-  if(!this.files[0]) return;
-  parseFileAsJSON(this.files[0], rows=>{
+// Import Programs
+document.getElementById("progFile").addEventListener("change", function(){
+  const f=this.files[0]; if(!f) return;
+  parseFileAsJSON(f, (rows)=>{
     progData = rows.map(r=>({
-      robot:(r.Robot||"").trim(),
-      robot2:(r.Robot2||"").trim(),
+      robot:(r.Robot||r.robot||"").toString().trim(),
+      robot2:(r.Robot2||r.robot2||"").toString().trim(),
       number:r.CollisionNumber||r.number,
-      program:(r.Program||"").trim()
+      program:(r.Program||r.program||"").toString().trim()
     }));
-    rebuild();
+    buildSetsAndRefresh();
   });
 });
 
-/* ============================================================
-   BUILD DATA
-============================================================ */
-function rebuild(){
-  plcSet.clear(); progSet.clear(); programsByKey.clear();
+function buildSetsAndRefresh(){
+  plcSet.clear(); progSet.clear(); programsByKey.clear(); plcReciprocal.clear();
 
   plcData.forEach(r=>{
-    if(r.robot1&&r.robot2&&r.number)
-      plcSet.add(keyFor(r.robot1,r.robot2,r.number));
+    if(r.robot1 && r.robot2 && r.number) plcSet.add(keyFor(r.robot1, r.robot2, r.number));
+  });
+
+  plcSet.forEach(k=>{
+    const [a,b,n]=k.split("__");
+    const rev=keyFor(b,a,n);
+    if(plcSet.has(rev)){
+      plcReciprocal.add(k);
+      plcReciprocal.add(rev);
+    }
   });
 
   progData.forEach(r=>{
-    if(r.robot&&r.robot2&&r.number){
-      const k=keyFor(r.robot,r.robot2,r.number);
+    if(r.robot && r.robot2 && r.number){
+      const k=keyFor(r.robot, r.robot2, r.number);
       progSet.add(k);
       if(!programsByKey.has(k)) programsByKey.set(k,[]);
       programsByKey.get(k).push(r.program);
     }
   });
 
-  const map=new Map();
-  [...plcSet,...progSet].forEach(k=>{
+  const mergedMap = new Map();
+  [...plcSet, ...progSet].forEach(k=>{
     const [a,b,n]=k.split("__");
-    const [sa,sb]=sortedPair(a,b);
-    const mk=`${sa}__${sb}__${n}`;
-    if(!map.has(mk)){
+    const [sa,sb] = sortedPair(a,b);
+    const mergeKey=`${sa}__${sb}__${n}`;
+
+    if(!mergedMap.has(mergeKey)){
       const k1=keyFor(sa,sb,n), k2=keyFor(sb,sa,n);
-      map.set(mk,{
-        key:mk, robot1:sa, robot2:sb, number:n,
-        missingInPLC:(progSet.has(k1)&&!plcSet.has(k1))||(progSet.has(k2)&&!plcSet.has(k2)),
-        plcMutual:plcSet.has(k1)&&plcSet.has(k2),
-        usedBoth:progSet.has(k1)&&progSet.has(k2),
+
+      const inPLC = plcSet.has(k1) || plcSet.has(k2);
+      const inProg = progSet.has(k1) || progSet.has(k2);
+      const usedBoth = progSet.has(k1) && progSet.has(k2);
+      const missingInPLC = (progSet.has(k1)&&!plcSet.has(k1)) || (progSet.has(k2)&&!plcSet.has(k2));
+      const plcMutual = plcSet.has(k1) && plcSet.has(k2);
+
+      mergedMap.set(mergeKey,{
+        key:mergeKey,
+        robot1:sa, robot2:sb, number:n,
+        inPLC,inProg,usedBoth,missingInPLC,plcMutual,
         programs_robot1:programsByKey.get(k1)||[],
         programs_robot2:programsByKey.get(k2)||[]
       });
     }
   });
 
-  allCollisions=[...map.values()];
-  nodes=[...new Set(allCollisions.flatMap(c=>[c.robot1,c.robot2]))]
-    .map(id=>({id,x:Math.random()*900+100,y:Math.random()*400+100}));
+  allCollisions = Array.from(mergedMap.values());
 
-  hiddenRobots.clear();
+  const robots = new Set();
+  allCollisions.forEach(c=>{
+    robots.add(c.robot1);
+    robots.add(c.robot2);
+  });
+
+  nodes = Array.from(robots).map(id=>({
+    id,
+    x:Math.random()*(svgWidth-200)+100,
+    y:Math.random()*(svgHeight-200)+100
+  }));
+
+  hiddenRobots.clear(); // default show all after new import
   initGraph();
 }
 
-/* ============================================================
-   GRAPH RENDER
-============================================================ */
 let nodeSel, linkSel, collSel;
 
 function initGraph(){
@@ -364,116 +332,254 @@ function initGraph(){
   collisionGroup.selectAll("*").remove();
   nodeGroup.selectAll("*").remove();
 
-  const linkMap=new Map();
+  const linkMap = new Map();
   allCollisions.forEach(c=>{
-    const k=sortedPair(c.robot1,c.robot2).join("__");
-    if(!linkMap.has(k)) linkMap.set(k,{source:c.robot1,target:c.robot2,collisions:[]});
-    linkMap.get(k).collisions.push(c);
+    const pairKey = sortedPair(c.robot1, c.robot2).join("__");
+    if(!linkMap.has(pairKey)) linkMap.set(pairKey,{source:c.robot1,target:c.robot2,collisions:[]});
+    linkMap.get(pairKey).collisions.push(c);
   });
+  const links = Array.from(linkMap.values());
 
-  const links=[...linkMap.values()];
+  linkSel = linkGroup.selectAll("line")
+    .data(links, d => d.source+"__"+d.target)
+    .enter().append("line")
+    .attr("class","link")
+    .attr("stroke","red")
+    .attr("stroke-width",4);
 
-  linkSel=linkGroup.selectAll("line")
-    .data(links).enter().append("line").attr("class","link");
+  const flatColl = [];
+  links.forEach(l => l.collisions.forEach((c,i) => flatColl.push({collision:c, link:l, index:i})));
 
-  const flat=[];
-  links.forEach(l=>l.collisions.forEach((c,i)=>flat.push({collision:c,link:l,index:i})));
-
-  collSel=collisionGroup.selectAll("g")
-    .data(flat).enter().append("g").attr("class","collision")
+  collSel = collisionGroup.selectAll("g.collision")
+    .data(flatColl, d => d.collision.key)
+    .enter().append("g")
+    .attr("class","collision")
     .each(function(d){
       const g=d3.select(this);
       let fill="#ffffff";
       if(d.collision.missingInPLC) fill="#fff7cc";
       else if(!d.collision.plcMutual) fill="#ff6666";
       else if(!d.collision.usedBoth) fill="#ffcccc";
-      g.append("circle").attr("r",12).style("fill",fill)
-        .on("click",(e)=>{e.stopPropagation();showTooltip(d,e);});
-      g.append("text").attr("dy","0.35em").text(d.collision.number);
+
+      g.append("circle")
+        .attr("r",12)
+        .style("fill",fill)
+        .on("click",(event)=>{
+          event.stopPropagation();
+          showTooltipForCollision(d,event);
+        });
+
+      g.append("text")
+        .attr("dy","0.35em")
+        .text(d.collision.number);
     });
 
-  nodeSel=nodeGroup.selectAll("g")
-    .data(nodes).enter().append("g").attr("class","node")
-    .on("contextmenu",(e,d)=>showContextMenu(e,d))
-    .call(d3.drag().on("drag",(e,d)=>{d.x=e.x;d.y=e.y;update();}));
+  nodeSel = nodeGroup.selectAll("g.node")
+    .data(nodes, d => d.id)
+    .enter().append("g")
+    .attr("class","node")
+    .on("contextmenu", function(event,d){ showContextMenu(event,d); })
+    .call(d3.drag()
+      .on("start", function(){ d3.select(this).raise(); })
+      .on("drag", function(event,d){
+        d.x=event.x; d.y=event.y;
+        updatePositions();
+      })
+    );
 
   nodeSel.append("rect").attr("rx",6).attr("ry",6);
   nodeSel.append("text").text(d=>d.id);
 
-  renderRobotList();
-  update();
-}
+  updatePositions();
 
-/* ============================================================
-   UPDATE POSITIONS
-============================================================ */
-function update(){
-  nodeSel.each(function(d){
-    const w=Math.max(60,d.id.length*8+20);
-    d.width=w; d.height=nodeHeight;
-    const g=d3.select(this);
-    g.attr("transform",`translate(${d.x},${d.y})`);
-    g.select("rect").attr("width",w).attr("height",d.height);
-    g.select("text").attr("x",w/2).attr("y",d.height/2);
-  });
-
-  linkSel.each(function(d){
-    const s=findNodeById(d.source), t=findNodeById(d.target);
-    if(!s||!t) return;
-    d3.select(this)
-      .attr("x1",s.x+s.width/2).attr("y1",s.y+s.height/2)
-      .attr("x2",t.x+t.width/2).attr("y2",t.y+t.height/2);
-  });
-
-  collSel.each(function(d){
-    const s=findNodeById(d.link.source), t=findNodeById(d.link.target);
-    if(!s||!t) return;
-    const cx=(s.x+t.x)/2, cy=(s.y+t.y)/2;
-    d3.select(this).select("circle").attr("cx",cx).attr("cy",cy);
-    d3.select(this).select("text").attr("x",cx).attr("y",cy);
-  });
-
+  renderRobotCheckboxList();
   applyVisibility();
 }
 
-/* ============================================================
-   VISIBILITY
-============================================================ */
-function renderRobotList(){
-  const div=document.getElementById("robotList");
-  div.innerHTML="";
-  nodes.map(n=>n.id).sort().forEach(id=>{
-    const l=document.createElement("label");
-    const c=document.createElement("input");
-    c.type="checkbox"; c.checked=!hiddenRobots.has(id);
-    c.onchange=()=>{c.checked?hiddenRobots.delete(id):hiddenRobots.add(id);applyVisibility();};
-    l.append(c,document.createTextNode(id));
-    div.append(l);
+function nodeWidthForId(id){ return Math.max(60, id.length*8 + 20); }
+
+function updatePositions(){
+  // --- Nodes
+  nodeSel.each(function(d){
+    const w=nodeWidthForId(d.id);
+    d.width=w; d.height=nodeHeight;
+
+    const g=d3.select(this);
+    g.attr("transform",`translate(${d.x},${d.y})`);
+
+    // size only (style handled by CSS)
+    g.select("rect")
+      .attr("width",w)
+      .attr("height",d.height)
+      .attr("x",0)
+      .attr("y",0);
+
+    g.select("text")
+      .attr("x", w/2)
+      .attr("y", d.height/2)
+      .attr("text-anchor","middle")
+      .attr("dominant-baseline","middle");
+  });
+
+  // --- Links (line endpoints at node centers)
+  linkSel.each(function(d){
+    const s=findNodeById(d.source), t=findNodeById(d.target);
+    if(!s || !t) return;
+    d3.select(this)
+      .attr("x1", s.x + s.width/2).attr("y1", s.y + s.height/2)
+      .attr("x2", t.x + t.width/2).attr("y2", t.y + t.height/2);
+  });
+
+  // --- Collisions placed on the link line + spacing for multiple collisions
+  collSel.each(function(d){
+    const s=findNodeById(d.link.source), t=findNodeById(d.link.target);
+    if(!s || !t) return;
+
+    const x1 = s.x + s.width/2,  y1 = s.y + s.height/2;
+    const x2 = t.x + t.width/2,  y2 = t.y + t.height/2;
+
+    const dx = x2-x1, dy = y2-y1;
+    const len = Math.hypot(dx,dy) || 1;
+    const ux = dx/len, uy = dy/len;
+
+    const tRatio = 0.5;        // middle of the segment
+    const spacing = 25;        // shift along the segment to separate bubbles
+    const total = d.link.collisions.length;
+    const idx = d.index;
+    const offset = (idx - (total-1)/2) * spacing;
+
+    // move along the line direction (ux,uy)
+    const cx = x1 + tRatio * dx + ux * offset;
+    const cy = y1 + tRatio * dy + uy * offset;
+
+    const g=d3.select(this);
+    g.select("circle").attr("cx",cx).attr("cy",cy);
+    g.select("text").attr("x",cx).attr("y",cy)
+      .attr("text-anchor","middle")
+      .attr("dominant-baseline","middle");
   });
 }
 
-function applyVisibility(){
-  nodeSel.style("display",d=>hiddenRobots.has(d.id)?"none":null);
-  linkSel.style("display",d=>(hiddenRobots.has(d.source)||hiddenRobots.has(d.target))?"none":null);
-  collSel.style("display",d=>(hiddenRobots.has(d.collision.robot1)||hiddenRobots.has(d.collision.robot2))?"none":null);
-  tooltip.style("display","none");
-}
+function findNodeById(id){ return nodes.find(n => n.id === id); }
 
-document.getElementById("robotsAllBtn").onclick=()=>{hiddenRobots.clear();renderRobotList();applyVisibility();};
-document.getElementById("robotsNoneBtn").onclick=()=>{hiddenRobots=new Set(nodes.map(n=>n.id));renderRobotList();applyVisibility();};
+function showTooltipForCollision(d,event){
+  const html =
+    `<b>Collision ${d.collision.number}</b>\n\n`+
+    `<b>${d.collision.robot1}</b>:\n${(d.collision.programs_robot1||[]).join("\n")}\n\n`+
+    `<b>${d.collision.robot2}</b>:\n${(d.collision.programs_robot2||[]).join("\n")}`;
 
-/* ============================================================
-   TOOLTIP
-============================================================ */
-function showTooltip(d,e){
   tooltip.style("display","block")
-    .html(`<b>Collision ${d.collision.number}</b>\n\n<b>${d.collision.robot1}</b>\n${d.collision.programs_robot1.join("\n")}\n\n<b>${d.collision.robot2}</b>\n${d.collision.programs_robot2.join("\n")}`)
-    .style("left",(e.pageX+12)+"px")
-    .style("top",(e.pageY+12)+"px");
+         .html(html)
+         .style("left",(event.pageX+12)+"px")
+         .style("top",(event.pageY+12)+"px");
 }
 
+// Click outside to close tooltip
 svgEl.on("click",()=>tooltip.style("display","none"));
-</script>
+nodeGroup.on("click",event=>event.stopPropagation());
+collisionGroup.on("click",event=>event.stopPropagation());
 
+// Background upload
+document.getElementById("bgUpload").addEventListener("change",function(evt){
+  const file = evt.target.files && evt.target.files[0];
+  if(!file) return;
+  const url = URL.createObjectURL(file);
+  const img = new Image();
+  img.onload=function(){
+    bgGroup.selectAll("image").remove();
+    bgGroup.append("image")
+      .attr("href",url)
+      .attr("x",0).attr("y",0)
+      .attr("width",svgWidth).attr("height",svgHeight)
+      .attr("preserveAspectRatio","xMidYMid meet");
+    updatePositions();
+  };
+  img.src=url;
+});
+
+// Zoom
+let activeZoomType="graph";
+const zoomGraph = d3.zoom().scaleExtent([0.2,5]).wheelDelta(event => -event.deltaY * 0.0003)
+  .on("zoom", event => graphGroup.attr("transform", event.transform));
+const zoomImage = d3.zoom().scaleExtent([0.2,5]).wheelDelta(event => -event.deltaY * 0.0003)
+  .on("zoom", event => bgGroup.attr("transform", event.transform));
+
+function enableZoom(type){
+  svgEl.call(d3.zoom().on("zoom", null));
+  if(type==="graph"){ svgEl.call(zoomGraph); modeLabel.text("Graph"); }
+  else { svgEl.call(zoomImage); modeLabel.text("Image"); }
+  activeZoomType = type;
+}
+document.getElementById("zoomGraphBtn").addEventListener("click",()=>enableZoom("graph"));
+document.getElementById("zoomImageBtn").addEventListener("click",()=>enableZoom("image"));
+enableZoom("graph");
+
+// Export SVG
+function exportSvgAsFile() {
+  const svgNode = document.querySelector("#svg");
+  const clone = svgNode.cloneNode(true);
+  const serializer = new XMLSerializer();
+  let source = serializer.serializeToString(clone);
+
+  if(!source.match(/^<svg[^>]+xmlns="http:\/\/www\.w3\.org\/2000\/svg"/)){
+    source = source.replace(/^<svg/, '<svg xmlns="http:\/\/www\.w3\.org\/2000\/svg"');
+  }
+  if(!source.match(/^<svg[^>]+"http:\/\/www\.w3\.org\/1999\/xlink"/)){
+    source = source.replace(/^<svg/, '<svg xmlns:xlink="http:\/\/www\.w3\.org\/1999\/xlink"');
+  }
+
+  const blob = new Blob([source], {type:"image/svg+xml;charset=utf-8"});
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "collision_graph.svg";
+  link.click();
+  URL.revokeObjectURL(url);
+}
+document.getElementById("exportSvgBtn").addEventListener("click", exportSvgAsFile);
+
+// Save/Load Project (includes hiddenRobots)
+function saveGraphProject() {
+  let fileName = prompt("Enter file name to save the graph:", "collision_graph_project");
+  if (!fileName) return;
+  if (!fileName.toLowerCase().endsWith(".json")) fileName += ".json";
+
+  const data = {
+    nodes,
+    allCollisions,
+    hiddenRobots: Array.from(hiddenRobots)
+  };
+
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = fileName;
+  link.click();
+
+  URL.revokeObjectURL(url);
+}
+document.getElementById("saveProjectBtn").addEventListener("click", saveGraphProject);
+
+document.getElementById("loadProjectBtn").addEventListener("click", () => {
+  document.getElementById("loadProjectInput").click();
+});
+
+document.getElementById("loadProjectInput").addEventListener("change", function() {
+  const f = this.files[0];
+  if (!f) return;
+
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const data = JSON.parse(e.target.result);
+    nodes = data.nodes || [];
+    allCollisions = data.allCollisions || [];
+    hiddenRobots = new Set(data.hiddenRobots || []);
+    initGraph();
+  };
+  reader.readAsText(f);
+});
+</script>
 </body>
 </html>
