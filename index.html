@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="en-US">
 <head>
 <meta charset="utf-8" />
 <title>Collision Graph - PLC x Programs + Zoom</title>
@@ -27,6 +27,10 @@ svg { display:block; background: transparent; }
 }
 .legend { font-size:12px; margin-top:6px; }
 .legend .dot { width:12px; height:12px; display:inline-block; vertical-align:middle; margin-right:6px; border:1px solid #111; }
+
+/* Robot checklist */
+#robotList label { display:flex; align-items:center; gap:8px; margin:2px 0; cursor:pointer; }
+#robotList input { cursor:pointer; }
 </style>
 </head>
 <body>
@@ -36,7 +40,7 @@ svg { display:block; background: transparent; }
   <input id="plcFile" type="file" accept=".xlsx,.xls,.csv"> 
   Import Robot Programs
   <input id="progFile" type="file" accept=".xlsx,.xls,.csv">
-  Import Layout Picture 
+  Import Layout Image 
   <input id="bgUpload" type="file" accept="image/*">
   
   <button id="zoomImageBtn">Zoom Image Mode</button>
@@ -52,6 +56,21 @@ svg { display:block; background: transparent; }
     <div><span class="dot" style="background:#ffcccc"></span> Collision implemented but NOT used</div>
     <div><span class="dot" style="background:#ff6666"></span> Collision implemented in only one direction (PLC error)</div>
     <div><span class="dot" style="background:#fff7cc"></span> Collision present in Programs but missing in PLC</div>
+  </div>
+
+  <hr style="margin:10px 0;">
+
+  <div style="font-size:13px; margin-bottom:6px;">
+    <b>Robots</b> (uncheck to hide)
+  </div>
+
+  <div id="robotList"
+       style="max-height:220px; overflow:auto; border:1px solid #ccc; border-radius:6px; padding:6px; background:#fff;">
+  </div>
+
+  <div style="margin-top:6px; display:flex; gap:6px;">
+    <button id="robotsAllBtn" style="width:122px;">Show All</button>
+    <button id="robotsNoneBtn" style="width:122px;">Hide All</button>
   </div>
 </div>
 
@@ -77,7 +96,7 @@ const nodeGroup = graphGroup.append("g");
 // === CONTEXT MENU DELETE ROBOT ===
 let contextRobot = null;
 
-// Cria menu de contexto
+// Create context menu
 const contextMenu = d3.select("body").append("div")
   .attr("id","contextMenu")
   .style("position","absolute")
@@ -88,9 +107,9 @@ const contextMenu = d3.select("body").append("div")
   .style("padding","6px")
   .style("z-index","99999")
   .style("font-size","13px")
-  .text("Deletar Robô");
+  .text("Delete Robot");
 
-// Ao clicar na opção do menu
+// When clicking the context menu option
 contextMenu.on("click",() => {
   if(contextRobot) {
     deleteRobot(contextRobot.id);
@@ -99,7 +118,7 @@ contextMenu.on("click",() => {
   hideContextMenu();
 });
 
-// Esconder menu ao clicar fora
+// Hide menu when clicking outside
 d3.select("body").on("click",()=>hideContextMenu());
 
 function showContextMenu(event, d){
@@ -113,17 +132,90 @@ function hideContextMenu(){
   contextMenu.style("display","none");
 }
 
-// Remove robô + colisões + links
+// Remove robot + collisions + links
 function deleteRobot(robotId){
   nodes = nodes.filter(n=>n.id!==robotId);
   allCollisions = allCollisions.filter(c => c.robot1!==robotId && c.robot2!==robotId);
+  hiddenRobots.delete(robotId);
   initGraph();
 }
 // ================================
 
 let plcData=[], progData=[], allCollisions=[], nodes=[];
 let plcSet=new Set(), progSet=new Set(), programsByKey=new Map(), plcReciprocal=new Set();
+let hiddenRobots = new Set();
 const nodeHeight=28;
+
+
+// === ROBOT VISIBILITY CHECKBOX LIST ===
+function isRobotHidden(id){
+  return hiddenRobots.has(id);
+}
+
+function renderRobotCheckboxList(){
+  const listDiv = document.getElementById("robotList");
+  if(!listDiv) return;
+
+  const robotIds = nodes.map(n => n.id).slice().sort((a,b) => a.localeCompare(b));
+  listDiv.innerHTML = "";
+
+  robotIds.forEach(id => {
+    const label = document.createElement("label");
+
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.checked = !isRobotHidden(id);
+    checkbox.dataset.robotId = id;
+
+    checkbox.addEventListener("change", () => {
+      if(checkbox.checked) hiddenRobots.delete(id);
+      else hiddenRobots.add(id);
+      applyRobotVisibility();
+    });
+
+    const span = document.createElement("span");
+    span.textContent = id;
+
+    label.appendChild(checkbox);
+    label.appendChild(span);
+    listDiv.appendChild(label);
+  });
+}
+
+function applyRobotVisibility(){
+  if(nodeSel){
+    nodeSel.style("display", d => isRobotHidden(d.id) ? "none" : null);
+  }
+
+  if(linkSel){
+    linkSel.style("display", d =>
+      (isRobotHidden(d.source) || isRobotHidden(d.target)) ? "none" : null
+    );
+  }
+
+  if(collSel){
+    collSel.style("display", d => {
+      const r1 = d.collision.robot1;
+      const r2 = d.collision.robot2;
+      return (isRobotHidden(r1) || isRobotHidden(r2)) ? "none" : null;
+    });
+  }
+
+  tooltip.style("display","none");
+}
+
+document.getElementById("robotsAllBtn").addEventListener("click", () => {
+  hiddenRobots.clear();
+  renderRobotCheckboxList();
+  applyRobotVisibility();
+});
+
+document.getElementById("robotsNoneBtn").addEventListener("click", () => {
+  hiddenRobots = new Set(nodes.map(n => n.id));
+  renderRobotCheckboxList();
+  applyRobotVisibility();
+});
+// ======================================
 
 function keyFor(a,b,n){ return `${a}__${b}__${n}`; }
 function sortedPair(a,b){ return [a,b].sort(); }
@@ -204,6 +296,10 @@ function buildSetsAndRefresh(){
   const robots = new Set();
   allCollisions.forEach(c=>{ robots.add(c.robot1); robots.add(c.robot2); });
   nodes = Array.from(robots).map(id=>({id, x:Math.random()*(svgWidth-200)+100, y:Math.random()*(svgHeight-200)+100}));
+
+  // Show all robots by default after importing new data
+  hiddenRobots.clear();
+
   initGraph();
 }
 
@@ -241,7 +337,7 @@ function initGraph(){
 
   nodeSel = nodeGroup.selectAll("g.node").data(nodes,d=>d.id)
     .enter().append("g").attr("class","node")
-    .on("contextmenu",function(event,d){ showContextMenu(event,d); }) // <--- RIGHT CLICK ADDED HERE ✅
+    .on("contextmenu",function(event,d){ showContextMenu(event,d); }) // Right-click opens the context menu
     .call(d3.drag()
       .on("start", function(event){ d3.select(this).raise(); })
       .on("drag", function(event,d){ d.x=event.x; d.y=event.y; updatePositions(); })
@@ -251,6 +347,9 @@ function initGraph(){
   nodeSel.append("text").text(d=>d.id);
 
   updatePositions();
+
+  renderRobotCheckboxList();
+  applyRobotVisibility();
 }
 
 function nodeWidthForId(id){ return Math.max(60,id.length*8+20); }
@@ -359,12 +458,12 @@ function exportSvgAsFile() {
 document.getElementById("exportSvgBtn").addEventListener("click", exportSvgAsFile);
 
 function saveGraphProject() {
-let fileName = prompt("Digite o nome do arquivo para salvar o gráfico:", "collision_graph_project");
+let fileName = prompt("Enter a file name to save the graph:", "collision_graph_project");
     if (!fileName) return;
-
+a
     if (!fileName.toLowerCase().endsWith(".json")) fileName += ".json";
 
-    const data = { nodes, allCollisions };
+    const data = { nodes, allCollisions, hiddenRobots: Array.from(hiddenRobots) };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
 
@@ -389,6 +488,7 @@ document.getElementById("loadProjectInput").addEventListener("change", function(
     const data = JSON.parse(e.target.result);
     nodes = data.nodes || [];
     allCollisions = data.allCollisions || [];
+    hiddenRobots = new Set(data.hiddenRobots || []);
     initGraph();
   };
   reader.readAsText(f);
